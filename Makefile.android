@@ -1,0 +1,56 @@
+.PHONY = all clean
+
+TOPDIR = $(shell pwd)
+SRCDIR = $(TOPDIR)/src
+LIBDIR = $(TOPDIR)/lib
+OBJECTDIR = $(TOPDIR)/build
+INCLUDEDIR = $(TOPDIR)/include
+BINDIR = $(TOPDIR)/bin
+BIN = $(BINDIR)/sapdecode.android
+
+CROSS_COMPILE = arm-linux-androideabi-
+AS = $(CROSS_COMPILE)as
+LD = $(CROSS_COMPILE)ld
+CC = $(CROSS_COMPILE)g++
+CPP = $(CC) -E
+AR = $(CROSS_COMPILE)ar
+NM = $(CROSS_COMPILE)nm
+STRIP = $(CROSS_COMPILE)strip
+RANLIB     = $(CROSS_COMPILE)ranlib
+
+CP        := cp
+RM        := rm
+MKDIR    := mkdir
+SED        := sed
+FIND    := find
+MKDIR    := mkdir
+XARGS    := xargs
+
+VPATH             = $(shell ls -AxR $(SRCDIR)|grep ":"|grep -v "\.svn"|tr -d ':')
+SOURCEDIRS    = $(VPATH)
+SOURCES     = $(foreach subdir,$(SOURCEDIRS),$(wildcard $(subdir)/*.cpp))
+SRCOBJS             = $(patsubst %.cpp,%.o,$(SOURCES))
+BUILDOBJS = $(subst $(SRCDIR),$(OBJECTDIR),$(SRCOBJS))
+DEPS            = $(patsubst %.o,%.d,$(BUILDOBJS))
+
+CFLAGS    = -O2 -Wall -MD $(foreach dir,$(INCLUDEDIR),-I$(dir)) 
+CFLAGS    += -march=armv7-a -mfpu=vfpv3-d16 -mfloat-abi=softfp
+ARFLAGS = rc
+
+LDFLAGS     += -L $(LIBDIR)
+XLDFLAGS = -Xlinker "-(" $(LDFLAGS) -Xlinker "-)"
+LDLIBS       += -lmtsp -lvorbisfile -lvorbis -logg -lm
+
+-include $(DEPS)
+
+$(BIN): $(BUILDOBJS)
+	@$(CC) $(subst $(SRCDIR),$(OBJECTDIR),$^) $(CPPFLAGS) $(CFLAGS) $(XLDFLAGS) $(LDFLAGS) -o $@ $(LDLIBS) --static
+	@$(STRIP) --strip-unneeded $(BIN)
+
+$(OBJECTDIR)%.o: $(SRCDIR)%.cpp
+	@[ ! -d $(dir $(subst $(SRCDIR),$(OBJECTDIR),$@)) ] & $(MKDIR) -p $(dir $(subst $(SRCDIR),$(OBJECTDIR),$@))
+	@$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -fPIC -o $(subst $(SRCDIR),$(OBJECTDIR),$@) -c $<
+
+clean:
+	@$(FIND) $(OBJECTDIR) -name "*.o" -o -name "*.d" | $(XARGS) $(RM) -f
+	@$(RM) -f $(BIN) 
